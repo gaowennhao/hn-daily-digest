@@ -54,8 +54,9 @@ jobs:
 
       - name: Generate Chinese digest
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+          DASHSCOPE_BASE_URL: ${{ secrets.DASHSCOPE_BASE_URL }}
+          DASHSCOPE_MODEL: ${{ secrets.DASHSCOPE_MODEL }}
         run: python generate_digest.py
 
       - name: Send email
