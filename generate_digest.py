@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a Chinese HTML Hacker News digest with the OpenAI Responses API."""
+"""Generate a Chinese HTML Hacker News digest with Alibaba Cloud Model Studio."""
 
 from __future__ import annotations
 
@@ -20,7 +20,8 @@ SOURCE_FILE = OUTPUT_DIR / "latest.json"
 HTML_FILE = OUTPUT_DIR / "digest.html"
 TEXT_FILE = OUTPUT_DIR / "digest.txt"
 
-DEFAULT_MODEL = "gpt-5.4-mini"
+DEFAULT_MODEL = "qwen-plus"
+DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 BATCH_SIZE = 5
 MAX_RETRIES = 3
 
@@ -90,20 +91,24 @@ def call_json(
 
     for attempt in range(MAX_RETRIES):
         try:
-            response = client.responses.create(
+            response = client.chat.completions.create(
                 model=model,
-                instructions=SYSTEM_INSTRUCTIONS,
-                input=prompt,
-                max_output_tokens=max_output_tokens,
+                messages=[
+                    {"role": "system", "content": SYSTEM_INSTRUCTIONS},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=max_output_tokens,
+                temperature=0.2,
             )
-            return parse_json_response(response.output_text)
+            content = response.choices[0].message.content or ""
+            return parse_json_response(content)
         except Exception as exc:
             last_error = exc
             if attempt < MAX_RETRIES - 1:
                 time.sleep(2 ** attempt)
 
     raise RuntimeError(
-        f"OpenAI request failed after {MAX_RETRIES} attempts: {last_error}"
+        f"Bailian request failed after {MAX_RETRIES} attempts: {last_error}"
     ) from last_error
 
 
@@ -455,15 +460,22 @@ def html_to_text(value: str) -> str:
 
 def main() -> int:
     try:
-        require_environment("OPENAI_API_KEY")
-        model = os.getenv("OPENAI_MODEL", "").strip() or DEFAULT_MODEL
+        api_key = require_environment("DASHSCOPE_API_KEY")
+        model = os.getenv("DASHSCOPE_MODEL", "").strip() or DEFAULT_MODEL
+        base_url = (
+            os.getenv("DASHSCOPE_BASE_URL", "").strip()
+            or DEFAULT_BASE_URL
+        )
 
         data = json.loads(SOURCE_FILE.read_text(encoding="utf-8"))
         stories = data.get("stories")
         if not isinstance(stories, list) or not stories:
             raise RuntimeError("output/latest.json has no stories.")
 
-        client = OpenAI()
+        client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+        )
         summaries: list[dict[str, Any]] = []
 
         for start in range(0, len(stories), BATCH_SIZE):
